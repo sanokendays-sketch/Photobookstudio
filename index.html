@@ -19,9 +19,9 @@
       <nav class="steps" aria-label="制作ステップ">
         <button class="step-link active" data-view="start">Start</button>
         <button class="step-link" data-view="basic">基本情報</button>
-        <button class="step-link" data-view="photos">写真取り込み</button>
-        <button class="step-link" data-view="themes">テーマ整理</button>
         <button class="step-link" data-view="slideEdit">スライド編集</button>
+        <button class="step-link" data-view="photos">写真ライブラリ</button>
+        <button class="step-link" data-view="themes">テーマ整理</button>
         <button class="step-link" data-view="ai">AI支援</button>
         <button class="step-link" data-view="preview">上映プレビュー</button>
         <button class="step-link" data-view="checklist">本番チェック</button>
@@ -50,13 +50,34 @@
         <div class="hero-panel">
           <p class="eyebrow">For a sincere farewell gift</p>
           <h2>写真と言葉で、本部長の歩みを物語として贈る。</h2>
-          <p>写真をただ並べるのではなく、歩み、功績、人柄、現場に残してくださったもの、感謝、未来へのエールを一冊の送別アルバムとしてまとめます。</p>
+          <p>スライドの役割とデザインを先に決めて、その場面に必要な写真だけを選びながら、歩み、功績、人柄、感謝、未来へのエールを一冊の送別アルバムとしてまとめます。</p>
           <div class="hero-actions">
             <button id="newAlbumBtn" class="primary">新しいアルバムを作成する</button>
             <label class="secondary file-button">
               保存済みプロジェクトを開く
               <input id="projectFileInputStart" type="file" accept="application/json">
             </label>
+          </div>
+          <div id="startMethodPanel" class="start-method-panel" hidden>
+            <div class="section-heading">
+              <p class="eyebrow">Start package</p>
+              <h2>作り方を選んでください</h2>
+              <p>最初のたたき台を作ってから、写真・言葉・レイアウトを自由に調整できます。</p>
+            </div>
+            <div class="start-method-grid">
+              <button id="goldenLegacyStarterBtn" class="start-method-card primary" type="button">
+                <strong>Golden Legacy 10枚パッケージ</strong>
+                <span>DRM型の感情導線に沿った、表紙からエンディングまでの構成を生成します。</span>
+              </button>
+              <button id="blankAlbumBtn" class="start-method-card secondary" type="button">
+                <strong>空のアルバムから作成</strong>
+                <span>1枚目から自由にスライドを作ります。</span>
+              </button>
+              <button id="autoThemeAlbumBtn" class="start-method-card secondary" type="button">
+                <strong>自動テーマ構成で作成</strong>
+                <span>写真ライブラリとテーマ整理を使う従来方式で始めます。</span>
+              </button>
+            </div>
           </div>
           <div class="promise-grid">
             <div><strong>写真は外部送信しません</strong><span>画像処理はブラウザ内で完結します。</span></div>
@@ -107,14 +128,14 @@
       <section id="photos" class="view">
         <div class="section-heading">
           <p class="eyebrow">Photo import</p>
-          <h2>写真取り込み</h2>
-          <p>jpg / jpeg / png / webp に対応します。iPhoneのHEIC写真はJPGに変換してから使用してください。</p>
+          <h2>写真ライブラリ</h2>
+          <p>補助機能です。基本は「スライド編集」でスライドごとに必要な写真を追加してください。事前に候補写真をまとめて置いておきたい場合だけ、この画面を使います。</p>
         </div>
         <div id="dropZone" class="drop-zone">
           <input id="photoInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple>
           <div>
-            <strong>写真を選択、またはここにドラッグ＆ドロップ</strong>
-            <span>写真が多い場合は処理に時間がかかります。写真は外部送信されません。</span>
+            <strong>候補写真をまとめてライブラリに追加</strong>
+            <span>この画面は補助用です。スライドごとの写真追加は「スライド編集」内のフレームから行えます。</span>
           </div>
         </div>
         <div class="import-status">
@@ -161,7 +182,7 @@
         <div class="section-heading">
           <p class="eyebrow">Slide wording</p>
           <h2>スライド編集</h2>
-          <p>自動生成された言葉を土台に、1枚ごとの表現を本番用に整えます。手動編集文がある場合は、プレビューとPDF保存で手動編集文を優先します。</p>
+          <p>まず、このスライドの見せ方を選びます。そのあと、このレイアウトに合う写真を追加してください。写真を先に全部取り込む必要はありません。</p>
         </div>
         <div class="slide-edit-actions">
           <button id="autoModeBtn" class="secondary">自動テーマ構成モード</button>
@@ -220,12 +241,12 @@
     </main>
   </div>
 
-  <script src="js/storage.js"></script>
-  <script src="js/imageProcessor.js"></script>
-  <script src="js/layoutEngine.js"></script>
-  <script src="js/slides.js"></script>
-  <script src="js/aiPromptBuilder.js"></script>
-  <script src="js/exporter.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/storage.js?v=starter-package-1"></script>
+  <script src="js/imageProcessor.js?v=starter-package-1"></script>
+  <script src="js/layoutEngine.js?v=starter-package-1"></script>
+  <script src="js/slides.js?v=starter-package-1"></script>
+  <script src="js/aiPromptBuilder.js?v=starter-package-1"></script>
+  <script src="js/exporter.js?v=starter-package-1"></script>
+  <script src="js/app.js?v=starter-package-1"></script>
 </body>
 </html>
