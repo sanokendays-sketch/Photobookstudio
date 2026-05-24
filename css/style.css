@@ -576,13 +576,36 @@ progress {
 .text-fit-warning {
   display: grid;
   gap: 6px;
-  border: 1px solid rgba(255, 176, 166, 0.75);
+  border: 1px solid rgba(240, 217, 140, 0.75);
   border-radius: 8px;
   padding: 12px 14px;
-  color: #ffe0dc;
-  background: rgba(255, 176, 166, 0.10);
+  color: #f8edc6;
+  background: rgba(240, 217, 140, 0.10);
   line-height: 1.65;
   font-size: 13px;
+}
+
+.slide-list-warning,
+.text-length-hint {
+  color: var(--gold-strong);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.slide-list-warning {
+  width: fit-content;
+  border: 1px solid rgba(240, 217, 140, 0.52);
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(240, 217, 140, 0.08);
+}
+
+.text-length-hint {
+  color: var(--muted);
+}
+
+.text-length-hint.is-long {
+  color: #f0d98c;
 }
 
 .photo-count-control,
@@ -789,6 +812,29 @@ progress {
   border-bottom: 1px solid var(--line);
 }
 
+.pdf-mode-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pdf-mode-control select {
+  min-width: 220px;
+  padding: 9px 10px;
+}
+
+.pdf-mode-hint {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--gold-strong);
+  background: rgba(216, 183, 102, 0.08);
+  border-bottom: 1px solid rgba(216, 183, 102, 0.18);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .slide-stage {
   min-height: calc(100vh - 75px);
   display: grid;
@@ -835,50 +881,57 @@ progress {
 
 .slide-text-area {
   position: absolute;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   margin: 0;
   padding: 0.15em 0.25em;
   text-align: center;
-  overflow: hidden;
-  line-height: 1.45;
+  overflow: visible;
+  line-height: var(--fit-line-height, 1.45);
   z-index: 2;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: keep-all;
   overflow-wrap: anywhere;
-  transform: scale(var(--fit-scale, 1));
-  transform-origin: center center;
-  max-height: 100%;
+  font-size: var(--fit-font-size, 24px);
+  letter-spacing: var(--fit-letter-spacing, 0);
+}
+
+.slide-text-area span {
+  display: block;
+  max-width: 100%;
 }
 
 .slide-title {
   color: var(--gold-strong);
   font-weight: 700;
-  font-size: clamp(22px, 4.4cqw, 78px);
+  font-size: var(--fit-font-size, 54px);
+  letter-spacing: var(--fit-letter-spacing, 0.02em);
 }
 
 .slide-kicker {
   color: var(--gold);
-  font-size: clamp(11px, 1.2cqw, 22px);
+  font-size: var(--fit-font-size, 26px);
 }
 
 .slide-renderer .slide-message {
-  font-size: clamp(13px, 1.55cqw, 30px);
-  line-height: 1.65;
+  font-size: var(--fit-font-size, 24px);
+  line-height: var(--fit-line-height, 1.62);
   color: #efe8d7;
 }
 
 .slide-caption {
   color: var(--muted);
-  font-size: clamp(10px, 1cqw, 17px);
-  line-height: 1.4;
+  font-size: var(--fit-font-size, 18px);
+  line-height: var(--fit-line-height, 1.38);
 }
 
 .slide-renderer .slide-supplemental,
 .slide-renderer .slide-ending-copy {
   color: var(--muted);
-  font-size: clamp(12px, 1.25cqw, 22px);
-  line-height: 1.55;
+  font-size: var(--fit-font-size, 20px);
+  line-height: var(--fit-line-height, 1.45);
 }
 
 .slide-renderer .slide-ending-copy {
@@ -886,15 +939,15 @@ progress {
 }
 
 .slide-renderer.message-volume-少なめ .slide-message {
-  font-size: clamp(12px, 1.35cqw, 25px);
+  font-size: var(--fit-font-size, 22px);
 }
 
 .slide-renderer.message-volume-多め .slide-message {
-  font-size: clamp(14px, 1.75cqw, 34px);
+  font-size: var(--fit-font-size, 24px);
 }
 
 .slide-text-area.is-text-overflow {
-  outline: 1px solid rgba(255, 176, 166, 0.75);
+  outline: 1px solid rgba(240, 217, 140, 0.85);
   outline-offset: -2px;
 }
 
@@ -1336,20 +1389,20 @@ progress {
 }
 
 .slide-renderer .slide-kicker {
-  font-size: clamp(11px, 1.2cqw, 22px);
+  font-size: var(--fit-font-size, 26px);
 }
 
 .slide-renderer .slide-message {
   margin-top: 0;
-  font-size: clamp(13px, 1.55cqw, 30px);
-  line-height: 1.65;
+  font-size: var(--fit-font-size, 24px);
+  line-height: var(--fit-line-height, 1.62);
 }
 
 .slide-renderer .slide-supplemental,
 .slide-renderer .slide-ending-copy {
   margin-top: 0;
-  font-size: clamp(12px, 1.25cqw, 22px);
-  line-height: 1.55;
+  font-size: var(--fit-font-size, 20px);
+  line-height: var(--fit-line-height, 1.45);
 }
 
 .checklist {
@@ -1415,14 +1468,29 @@ progress {
   }
 }
 
-@page {
+@page pdf169 {
+  size: 16in 9in;
+  margin: 0;
+}
+
+@page a4landscape {
   size: A4 landscape;
   margin: 0;
 }
 
+@page {
+  size: 16in 9in;
+  margin: 0;
+}
+
 @media print {
+  html,
   body {
-    background: white;
+    width: 100%;
+    min-height: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #000 !important;
   }
 
   .no-print,
@@ -1434,6 +1502,7 @@ progress {
 
   .app-shell {
     display: block;
+    min-height: 0;
   }
 
   .preview-view,
@@ -1444,17 +1513,76 @@ progress {
 
   .print-slides {
     display: block;
+    margin: 0;
+    padding: 0;
+    background: #000;
   }
 
   .print-page {
-    width: 100vw !important;
-    height: calc(100vw * 9 / 16) !important;
-    max-height: 100vh;
-    aspect-ratio: 16 / 9;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: #000;
+    overflow: hidden;
     page-break-after: always;
     break-after: page;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-page .slide-renderer {
+    flex: 0 0 auto;
+    max-width: none;
     border: 0;
-    margin: 0 auto;
+  }
+
+  .print-mode-169 .print-page {
+    page: pdf169;
+    width: 16in;
+    height: 9in;
+    display: grid;
+    place-items: center;
+  }
+
+  .print-mode-169 .print-page .slide-renderer {
+    width: 16in !important;
+    height: 9in !important;
+    aspect-ratio: auto;
+  }
+
+  .print-mode-a4-center .print-page {
+    page: a4landscape;
+    width: 297mm;
+    height: 210mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .print-mode-a4-center .print-page .slide-renderer {
+    width: 297mm !important;
+    height: 167.0625mm !important;
+    aspect-ratio: auto;
+  }
+
+  .print-mode-a4-fill .print-page {
+    page: a4landscape;
+    width: 297mm;
+    height: 210mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .print-mode-a4-fill .print-page .slide-renderer {
+    width: 373.333mm !important;
+    height: 210mm !important;
+    aspect-ratio: auto;
   }
 
   .slide-renderer {

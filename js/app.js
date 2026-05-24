@@ -26,6 +26,24 @@
     '予備ファイルをUSB等に保存したか'
   ];
 
+  const PDF_MODES = {
+    '169': {
+      className: 'print-mode-169',
+      label: '16:9スライドPDF',
+      description: '上映・デジタル共有向け。PDFページ自体を16:9にして、下部の白い余白が出にくい設定です。'
+    },
+    'a4-center': {
+      className: 'print-mode-a4-center',
+      label: 'A4横・中央配置',
+      description: '紙印刷向け。16:9スライドをA4横ページの中央に置き、上下の余白が偏らないようにします。'
+    },
+    'a4-fill': {
+      className: 'print-mode-a4-fill',
+      label: 'A4横・余白少なめ',
+      description: '余白なし優先・一部トリミングあり。A4横ページいっぱいに黒背景を敷き、スライドを拡大します。'
+    }
+  };
+
   const starterPackages = {
     goldenLegacy10: {
       name: 'Golden Legacy 10枚パッケージ',
@@ -71,6 +89,7 @@
     currentSlideIndex: 0,
     slides: [],
     showLayoutGuides: false,
+    pdfMode: '169',
     playing: null
   };
 
@@ -598,14 +617,18 @@
   function renderSlideEditList() {
     const list = $('#slideEditList');
     if (!list) return;
-    list.innerHTML = state.slides.map((slide, index) => `
+    list.innerHTML = state.slides.map((slide, index) => {
+      const warnings = slideTextWarnings(slide);
+      return `
       <button class="slide-edit-item ${slide.slideId === state.currentSlideEditId ? 'active' : ''}" data-slide-id="${slide.slideId}">
         <span class="slide-edit-no">Slide ${index + 1}</span>
         <strong>${window.SlideBuilder.escapeHtml(slide.typeLabel || slide.kind)}</strong>
         <small>${window.SlideBuilder.escapeHtml(slide.title || 'タイトルなし')}</small>
         <span class="mini-preview">${window.SlideBuilder.escapeHtml((slide.message || '').slice(0, 44))}</span>
+        ${warnings.length ? `<span class="slide-list-warning">文字量を確認</span>` : ''}
       </button>
-    `).join('');
+    `;
+    }).join('');
     $$('.slide-edit-item').forEach((button) => {
       button.addEventListener('click', () => {
         state.currentSlideEditId = button.dataset.slideId;
@@ -635,12 +658,12 @@
       <div id="textFitWarning" class="text-fit-warning" hidden></div>
       <div class="editor-grid">
         ${state.creationMode === 'manual' ? manualSlideSettingsMarkup(manualSlide) : ''}
-        <label>スライドタイトル<input data-slide-field="title" value="${window.SlideBuilder.escapeHtml(manual.title || '')}" placeholder="${window.SlideBuilder.escapeHtml(slide.autoText?.title || '')}"></label>
-        <label>サブタイトル<input data-slide-field="subtitle" value="${window.SlideBuilder.escapeHtml(manual.subtitle || '')}" placeholder="${window.SlideBuilder.escapeHtml(slide.autoText?.subtitle || '')}"></label>
-        <label class="wide">メインメッセージ<textarea data-slide-field="message" placeholder="${window.SlideBuilder.escapeHtml(slide.autoText?.message || '')}">${window.SlideBuilder.escapeHtml(manual.message || '')}</textarea></label>
-        <label class="wide">キャプション入力欄<textarea data-slide-field="caption" placeholder="${window.SlideBuilder.escapeHtml(slide.autoText?.caption || '')}">${window.SlideBuilder.escapeHtml(manual.caption || '')}</textarea></label>
-        <label class="wide">補足メッセージ<textarea data-slide-field="supplemental" placeholder="${window.SlideBuilder.escapeHtml(slide.autoText?.supplemental || '')}">${window.SlideBuilder.escapeHtml(manual.supplemental || '')}</textarea></label>
-        <label>エンディングコピー<input data-slide-field="endingCopy" value="${window.SlideBuilder.escapeHtml(manual.endingCopy || '')}" placeholder="${window.SlideBuilder.escapeHtml(slide.autoText?.endingCopy || '')}"></label>
+        ${textFieldMarkup('title', 'スライドタイトル', 'input', manual.title, slide.autoText?.title)}
+        ${textFieldMarkup('subtitle', 'サブタイトル', 'input', manual.subtitle, slide.autoText?.subtitle)}
+        ${textFieldMarkup('message', 'メインメッセージ', 'textarea', manual.message, slide.autoText?.message, 'wide')}
+        ${textFieldMarkup('caption', 'キャプション入力欄', 'textarea', manual.caption, slide.autoText?.caption, 'wide')}
+        ${textFieldMarkup('supplemental', '補足メッセージ', 'textarea', manual.supplemental, slide.autoText?.supplemental, 'wide')}
+        ${textFieldMarkup('endingCopy', 'エンディングコピー', 'input', manual.endingCopy, slide.autoText?.endingCopy)}
         <label>感情役割<select data-slide-field="emotionalRole">${emotionRolesD().map((role) => `<option ${((manual.emotionalRole || slide.emotionalRole) === role) ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
         <label>レイアウトタイプ<select data-slide-field="layoutType">${window.LayoutEngine.LAYOUTS.map((layout) => `<option ${((manual.layoutType || slide.layoutType) === layout) ? 'selected' : ''}>${layout}</option>`).join('')}</select></label>
       </div>
@@ -670,6 +693,29 @@
     });
   }
 
+  function textFieldMarkup(field, label, type, value, placeholder, extraClass = '') {
+    const current = value || '';
+    const hint = textLengthHint(field, current);
+    const escapedValue = window.SlideBuilder.escapeHtml(current);
+    const escapedPlaceholder = window.SlideBuilder.escapeHtml(placeholder || '');
+    const control = type === 'textarea'
+      ? `<textarea data-slide-field="${field}" placeholder="${escapedPlaceholder}">${escapedValue}</textarea>`
+      : `<input data-slide-field="${field}" value="${escapedValue}" placeholder="${escapedPlaceholder}">`;
+    return `<label class="${extraClass}">${label}${control}<span class="text-length-hint ${hint.long ? 'is-long' : ''}" data-length-hint="${field}">${window.SlideBuilder.escapeHtml(hint.message)}</span></label>`;
+  }
+
+  function textLengthHint(field, value) {
+    const limits = { title: 20, subtitle: 20, message: 60, caption: 25, supplemental: 45, endingCopy: 40 };
+    const labels = { title: 'タイトル', subtitle: 'サブタイトル', message: '本文', caption: 'キャプション', supplemental: '補足', endingCopy: 'エンディング' };
+    const length = String(value || '').replace(/\s+/g, '').length;
+    const limit = limits[field] || 40;
+    const base = `${labels[field] || '文字'}：推奨 ${limit}文字以内`;
+    return {
+      long: length > limit,
+      message: length > limit ? `${base}。少し長めです。文字が小さくなる可能性があります` : base
+    };
+  }
+
   function bindSlideTextFields(slide) {
     $$('#slideEditForm [data-slide-field]').forEach((field) => {
       field.addEventListener('input', () => updateSlideTextDraft(slide.slideId));
@@ -681,6 +727,7 @@
     const manualText = {};
     $$('#slideEditForm [data-slide-field]').forEach((field) => {
       manualText[field.dataset.slideField] = field.value;
+      updateLengthHint(field.dataset.slideField, field.value);
     });
     const currentEdit = state.slideEdits[slideId] || {};
     state.slideEdits[slideId] = {
@@ -701,22 +748,58 @@
     renderSlideEditPreview();
   }
 
+  function updateLengthHint(field, value) {
+    const hintEl = $(`[data-length-hint="${field}"]`);
+    if (!hintEl) return;
+    const hint = textLengthHint(field, value);
+    hintEl.textContent = hint.message;
+    hintEl.classList.toggle('is-long', hint.long);
+  }
+
   function renderTextFitWarning(slide, renderedSlide) {
     const warningBox = $('#textFitWarning');
     if (!warningBox || !slide) return;
     const warnings = renderedSlide
       ? JSON.parse(renderedSlide.dataset.textWarnings || '[]')
-      : window.SlideRenderer.textWarnings(slide, window.LayoutEngine.frameLayoutDefinition(slide.frameLayoutId || slide.layoutType, slide.frames?.length || slide.photos?.length || 0));
+      : slideTextWarnings(slide);
     if (!warnings.length) {
       warningBox.hidden = true;
       warningBox.innerHTML = '';
       return;
     }
     warningBox.hidden = false;
+    const slideNo = state.slides.findIndex((item) => item.slideId === slide.slideId) + 1;
+    const recommendation = layoutRecommendationForSlide(slide, warnings);
     warningBox.innerHTML = `
       <strong>文字量を確認してください</strong>
-      <span>このメッセージは長すぎるため、レイアウト内に収まりません。文字数を減らすか、文字エリアの大きいレイアウトを選んでください。</span>
+      ${warnings.map((warning) => `<span>スライド${slideNo}：${window.SlideBuilder.escapeHtml(warning.message)}</span>`).join('')}
+      ${recommendation ? `<span>${window.SlideBuilder.escapeHtml(recommendation)}</span>` : ''}
     `;
+  }
+
+  function slideTextWarnings(slide) {
+    const frameCount = slide.frames?.length || slide.photos?.length || 0;
+    const baseDefinition = window.LayoutEngine.frameLayoutDefinition(slide.frameLayoutId || slide.layoutType, frameCount);
+    const definition = window.LayoutEngine.adjustDefinitionForText
+      ? window.LayoutEngine.adjustDefinitionForText(baseDefinition, slide)
+      : baseDefinition;
+    return window.SlideRenderer.textWarnings(slide, definition);
+  }
+
+  function allTextWarnings() {
+    return state.slides.flatMap((slide, index) => slideTextWarnings(slide).map((warning) => ({
+      ...warning,
+      slideNo: index + 1,
+      slide
+    })));
+  }
+
+  function layoutRecommendationForSlide(slide, warnings) {
+    const messageLength = String(slide.message || '').replace(/\s+/g, '').length;
+    if (messageLength >= 90) return 'この文章量には Message Wide Top がおすすめです。さらに長い場合は Text Focus with Bottom Photo または Legacy Message First も確認してください。';
+    if (warnings.some((warning) => warning.area === 'message')) return '本文を主役にする場合は Text Focus with Bottom Photo がおすすめです。';
+    if (warnings.some((warning) => warning.area === 'title')) return '長いタイトルには Message Wide Top がおすすめです。';
+    return '';
   }
 
   function renderSlideEditPreview() {
@@ -1312,15 +1395,27 @@
     $('#playBtn').addEventListener('click', playSlides);
     $('#stopBtn').addEventListener('click', stopSlides);
     $('#fullscreenBtn').addEventListener('click', () => $('#slideStage').requestFullscreen?.());
-    $('#printBtn').addEventListener('click', () => window.print());
+    $('#pdfModeSelect').addEventListener('change', (event) => {
+      state.pdfMode = event.target.value;
+      renderPdfModeHint();
+    });
+    $('#printBtn').addEventListener('click', () => {
+      state.slides = window.SlideBuilder.buildSlides(state);
+      renderSlides();
+      if (!confirmTextWarnings('PDF出力')) return;
+      printPdf();
+    });
     $('#pptxBtn').addEventListener('click', async () => {
       try {
         state.slides = window.SlideBuilder.buildSlides(state);
-        await window.Exporter.exportPptx(state.slides, 'gratitude-photo-album.pptx');
+        if (!confirmTextWarnings('PPTX出力')) return;
+        await window.Exporter.exportPptx(state.slides, 'gratitude-photo-album.pptx', { skipTextWarningConfirm: true });
       } catch (error) {
         alert(`PPTX保存に失敗しました。PDF保存をお試しください。\n${error.message}`);
       }
     });
+    window.addEventListener('beforeprint', applyPrintModeClass);
+    window.addEventListener('afterprint', clearPrintModeClass);
     document.addEventListener('keydown', (event) => {
       if (!$('#preview').classList.contains('active')) return;
       if (event.key === 'ArrowRight') setSlide(state.currentSlideIndex + 1);
@@ -1332,11 +1427,52 @@
     });
   }
 
+  function renderPdfModeHint() {
+    const select = $('#pdfModeSelect');
+    const hint = $('#pdfModeHint');
+    if (!select || !hint) return;
+    select.value = state.pdfMode || '169';
+    const mode = PDF_MODES[state.pdfMode] || PDF_MODES['169'];
+    hint.textContent = `${mode.label}：${mode.description} 上映・デジタル共有には16:9スライドPDFがおすすめです。A4印刷では、用紙比率の違いにより上下に余白が出る場合があります。`;
+  }
+
+  function printPdf() {
+    applyPrintModeClass();
+    window.print();
+  }
+
+  function applyPrintModeClass() {
+    const mode = PDF_MODES[state.pdfMode] || PDF_MODES['169'];
+    const classes = Object.values(PDF_MODES).map((item) => item.className);
+    document.body.classList.remove(...classes);
+    document.body.classList.add(mode.className);
+  }
+
+  function clearPrintModeClass() {
+    document.body.classList.remove(...Object.values(PDF_MODES).map((item) => item.className));
+  }
+
+  function confirmTextWarnings(actionLabel) {
+    const warnings = allTextWarnings();
+    if (!warnings.length) return true;
+    const slideNos = [...new Set(warnings.map((warning) => warning.slideNo))].join('、');
+    const details = warnings.slice(0, 6).map((warning) => `スライド${warning.slideNo}：${warning.message}`).join('\n');
+    return confirm(`文字が収まっていない可能性のあるスライドがあります。\nスライド${slideNos}を確認してください。\n\n${details}\n\nこのまま${actionLabel}しますか？`);
+  }
+
   function renderSlides() {
     state.slides = window.SlideBuilder.buildSlides(state);
     setSlide(Math.min(state.currentSlideIndex, state.slides.length - 1));
     $('#printSlides').innerHTML = '';
-    state.slides.forEach((slide) => $('#printSlides').appendChild(window.SlideBuilder.renderSlide(slide, true)));
+    state.slides.forEach((slide) => $('#printSlides').appendChild(renderPrintPage(slide)));
+    renderPdfModeHint();
+  }
+
+  function renderPrintPage(slide) {
+    const page = document.createElement('section');
+    page.className = 'print-page';
+    page.appendChild(window.SlideRenderer.renderSlide(slide, { print: true }));
+    return page;
   }
 
   function setSlide(index) {
@@ -1407,7 +1543,8 @@
       photos: state.photos.map((photo) => serializePhoto(photo, includeImages)),
       manualSlides: state.manualSlides.map(serializeManualSlide),
       slideEdits: state.slideEdits,
-      aiReturnText: state.aiReturnText
+      aiReturnText: state.aiReturnText,
+      pdfMode: state.pdfMode
     };
   }
 
@@ -1468,6 +1605,7 @@
     state.manualSlides = (project.manualSlides || []).map(normalizeManualSlide);
     state.slideEdits = project.slideEdits || {};
     state.aiReturnText = project.aiReturnText || '';
+    state.pdfMode = PDF_MODES[project.pdfMode] ? project.pdfMode : '169';
     state.currentThemeId = state.themes[0]?.id || null;
     $('#aiReturnText').value = state.aiReturnText;
     bindBasicForm();

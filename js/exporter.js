@@ -43,8 +43,9 @@
     download(`album-structure-${Date.now()}.md`, lines.join('\n'), 'text/markdown;charset=utf-8');
   }
 
-  async function exportPptx(slides, fileName = 'gratitude-photo-album.pptx') {
+  async function exportPptx(slides, fileName = 'gratitude-photo-album.pptx', options = {}) {
     if (!slides?.length) throw new Error('出力するスライドがありません。');
+    if (!options.skipTextWarningConfirm && !confirmTextWarnings(slides, 'PPTX出力')) return;
     const images = [];
     for (const slide of slides) {
       images.push(await slideToPng(slide));
@@ -52,6 +53,28 @@
     const entries = buildPptxEntries(images);
     const blob = createZip(entries, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     saveBlob(fileName, blob);
+  }
+
+  function collectTextWarnings(slides) {
+    return (slides || []).flatMap((slide, index) => {
+      const frameCount = slide.frames?.length || slide.photos?.length || 0;
+      const baseDefinition = window.LayoutEngine.frameLayoutDefinition(slide.frameLayoutId || slide.layoutType, frameCount);
+      const definition = window.LayoutEngine.adjustDefinitionForText
+        ? window.LayoutEngine.adjustDefinitionForText(baseDefinition, slide)
+        : baseDefinition;
+      return window.SlideRenderer.textWarnings(slide, definition).map((warning) => ({
+        ...warning,
+        slideNo: index + 1
+      }));
+    });
+  }
+
+  function confirmTextWarnings(slides, actionLabel) {
+    const warnings = collectTextWarnings(slides);
+    if (!warnings.length) return true;
+    const slideNos = [...new Set(warnings.map((warning) => warning.slideNo))].join('、');
+    const details = warnings.slice(0, 6).map((warning) => `スライド${warning.slideNo}：${warning.message}`).join('\n');
+    return confirm(`文字が収まっていない可能性のあるスライドがあります。\nスライド${slideNos}を確認してください。\n\n${details}\n\nこのまま${actionLabel}しますか？`);
   }
 
   async function slideToPng(slide) {
@@ -297,6 +320,7 @@
   window.Exporter = {
     exportCsv,
     exportMarkdown,
-    exportPptx
+    exportPptx,
+    collectTextWarnings
   };
 })();

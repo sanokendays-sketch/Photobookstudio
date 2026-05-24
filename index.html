@@ -227,10 +227,18 @@
           <button id="nextSlideBtn" class="secondary">次へ</button>
           <button id="lastSlideBtn" class="secondary">最後へ</button>
           <button id="fullscreenBtn" class="secondary">フルスクリーン</button>
+          <label class="pdf-mode-control">PDF出力モード
+            <select id="pdfModeSelect">
+              <option value="169">16:9スライドPDF 推奨</option>
+              <option value="a4-center">A4横・中央配置</option>
+              <option value="a4-fill">A4横・余白少なめ トリミングあり</option>
+            </select>
+          </label>
           <button id="printBtn" class="secondary">印刷 / PDF保存</button>
           <button id="pptxBtn" class="secondary">PPTXとして保存</button>
           <span id="slideCounter">0 / 0</span>
         </div>
+        <p id="pdfModeHint" class="pdf-mode-hint no-print">上映・デジタル共有には16:9スライドPDFがおすすめです。A4印刷では、用紙比率の違いにより上下に余白が出る場合があります。</p>
         <p class="pptx-note no-print">PPTX出力は、見た目の崩れを防ぐため、各スライドを画像としてPowerPointに貼り付ける方式です。PowerPoint上で文字や写真を個別編集することはできません。</p>
         <div id="slideStage" class="slide-stage"></div>
         <div id="printSlides" class="print-slides"></div>

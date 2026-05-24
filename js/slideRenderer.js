@@ -1,20 +1,31 @@
 (function () {
   const BASE_WIDTH = 1920;
   const BASE_HEIGHT = 1080;
+  const TEXT_RULES = {
+    title: { maxFontSize: 54, minFontSize: 30, lineHeight: 1.18, minLineHeight: 1.08, recommended: 20 },
+    subtitle: { maxFontSize: 26, minFontSize: 16, lineHeight: 1.35, minLineHeight: 1.18, recommended: 20 },
+    message: { maxFontSize: 24, minFontSize: 15, lineHeight: 1.62, minLineHeight: 1.35, recommended: 60 },
+    caption: { maxFontSize: 18, minFontSize: 12, lineHeight: 1.38, minLineHeight: 1.22, recommended: 25 },
+    supplemental: { maxFontSize: 20, minFontSize: 13, lineHeight: 1.45, minLineHeight: 1.25, recommended: 45 },
+    endingCopy: { maxFontSize: 22, minFontSize: 14, lineHeight: 1.45, minLineHeight: 1.25, recommended: 40 }
+  };
 
   function renderSlide(slide, options = {}) {
     const article = document.createElement('article');
     const sizeClass = slide.photoScale ? `photo-scale-${layoutClass(slide.photoScale)}` : '';
     const volumeClass = slide.messageVolume ? `message-volume-${layoutClass(slide.messageVolume)}` : '';
     const frameCount = slide.frames?.length || slide.photos?.length || 0;
-    const definition = window.LayoutEngine.frameLayoutDefinition(slide.frameLayoutId || slide.layoutType, frameCount);
+    const baseDefinition = window.LayoutEngine.frameLayoutDefinition(slide.frameLayoutId || slide.layoutType, frameCount);
+    const definition = window.LayoutEngine.adjustDefinitionForText
+      ? window.LayoutEngine.adjustDefinitionForText(baseDefinition, slide)
+      : baseDefinition;
     const warnings = textWarnings(slide, definition);
     article.className = `slide slide-renderer ${layoutClass(slide.layoutType)} ${layoutClass(slide.frameLayoutId || '')} ${slide.kind || ''} ${sizeClass} ${volumeClass}`;
     article.dataset.baseWidth = BASE_WIDTH;
     article.dataset.baseHeight = BASE_HEIGHT;
     article.dataset.textWarnings = JSON.stringify(warnings);
     if (definition.variant) article.classList.add(`renderer-${definition.variant}`);
-    if (options.print) article.classList.add('print-page');
+    if (options.print) article.classList.add('print-slide');
     if (options.exporting) article.classList.add('export-slide');
     if (options.showGuides) article.classList.add('show-layout-guides');
 
@@ -41,7 +52,8 @@
     if (!rect || !String(value || '').trim()) return '';
     const fit = textFit(name, value, rect);
     const tooLong = warnings.some((warning) => warning.area === name);
-    return `<div class="slide-text-area ${className} ${tooLong ? 'is-text-overflow' : ''}" data-text-area="${name}" style="${rectStyle(rect)}--fit-scale:${fit.scale};--fit-lines:${fit.lines};">${escapeHtml(value).replace(/\n/g, '<br>')}</div>`;
+    const lines = fit.lines.map((line) => `<span>${escapeHtml(line || ' ')}</span>`).join('');
+    return `<div class="slide-text-area ${className} ${tooLong ? 'is-text-overflow' : ''}" data-text-area="${name}" data-fit-overflow="${fit.overflow ? 'true' : 'false'}" style="${rectStyle(rect)}--fit-font-size:${fit.fontSize}px;--fit-line-height:${fit.lineHeight};--fit-letter-spacing:${fit.letterSpacing}em;">${lines}</div>`;
   }
 
   function renderManualFrames(slide, definition) {
@@ -133,25 +145,133 @@
     if (!fit.overflow) return null;
     return {
       area,
-      message: 'このメッセージは長すぎるため、レイアウト内に収まりません。文字数を減らすか、文字エリアの大きいレイアウトを選んでください。'
+      recommendedLayout: recommendedLayoutForArea(area),
+      message: `${areaLabel(area)}が長いため、文字が収まりにくくなっています。文字優先レイアウトへの変更をおすすめします。`
     };
   }
 
   function textFit(area, value, rect) {
-    const text = String(value || '').replace(/\s+/g, '');
-    const manualLines = String(value || '').split('\n').length;
-    const areaScore = Math.max(0.01, (Number(rect.w) || 0) * (Number(rect.h) || 0));
-    const weight = area === 'title' ? 1000 : area === 'message' ? 1550 : 1750;
-    const capacity = Math.max(8, Math.floor(areaScore * weight));
-    const lineCapacity = Math.max(6, Math.floor((Number(rect.w) || 0.5) * (area === 'title' ? 26 : 34)));
-    const estimatedLines = Math.max(manualLines, Math.ceil(text.length / lineCapacity));
-    const maxLines = area === 'title' ? 3 : area === 'caption' ? 2 : 4;
-    const overRatio = capacity / Math.max(1, text.length);
-    return {
-      lines: Math.min(maxLines, Math.max(1, estimatedLines)),
-      scale: Math.max(0.72, Math.min(1, overRatio)),
-      overflow: text.length > capacity * 1.18 || estimatedLines > maxLines + 1
+    return fitTextToArea(value, rect, { area });
+  }
+
+  function fitTextToArea(text, area, options = {}) {
+    const areaName = options.area || 'message';
+    const rule = { ...(TEXT_RULES[areaName] || TEXT_RULES.message), ...options };
+    const box = {
+      width: Math.max(1, (Number(area?.w) || 0) * BASE_WIDTH),
+      height: Math.max(1, (Number(area?.h) || 0) * BASE_HEIGHT)
     };
+    const letterSpacing = titleLetterSpacing(areaName, text);
+    let lastLines = [];
+    for (let fontSize = rule.maxFontSize; fontSize >= rule.minFontSize; fontSize -= 1) {
+      const progress = (rule.maxFontSize - fontSize) / Math.max(1, rule.maxFontSize - rule.minFontSize);
+      const lineHeight = Number((rule.lineHeight - (rule.lineHeight - rule.minLineHeight) * progress).toFixed(3));
+      const lines = wrapText(text, box.width - fontSize * 0.8, fontSize, { letterSpacing });
+      lastLines = lines;
+      const height = lines.length * fontSize * lineHeight + fontSize * 0.3;
+      if (height <= box.height) {
+        return { fontSize, lines, lineHeight, letterSpacing, overflow: false };
+      }
+    }
+    return {
+      fontSize: rule.minFontSize,
+      lines: lastLines.length ? lastLines : wrapText(text, box.width - rule.minFontSize * 0.8, rule.minFontSize, { letterSpacing }),
+      lineHeight: rule.minLineHeight,
+      letterSpacing,
+      overflow: true
+    };
+  }
+
+  function wrapText(text, width, fontSize, options = {}) {
+    const maxWidth = Math.max(fontSize * 3, width);
+    const paragraphs = String(text || '').replace(/\r\n/g, '\n').split('\n');
+    const lines = [];
+    paragraphs.forEach((paragraph) => {
+      const tokens = tokenize(paragraph);
+      let line = '';
+      let lineWidth = 0;
+      tokens.forEach((token) => {
+        const tokenWidth = measureTextWidth(token, fontSize, options.letterSpacing);
+        if (line && lineWidth + tokenWidth > maxWidth) {
+          lines.push(line.trimEnd());
+          line = '';
+          lineWidth = 0;
+        }
+        if (tokenWidth > maxWidth) {
+          Array.from(token).forEach((char) => {
+            const charWidth = measureTextWidth(char, fontSize, options.letterSpacing);
+            if (line && lineWidth + charWidth > maxWidth) {
+              lines.push(line.trimEnd());
+              line = '';
+              lineWidth = 0;
+            }
+            line += char;
+            lineWidth += charWidth;
+          });
+          return;
+        }
+        line += token;
+        lineWidth += tokenWidth;
+      });
+      lines.push(line.trimEnd());
+    });
+    return lines.length ? lines : [''];
+  }
+
+  function tokenize(text) {
+    const result = [];
+    let ascii = '';
+    Array.from(String(text || '')).forEach((char) => {
+      if (/[\w\d.,!?;:'"()\- ]/.test(char)) {
+        ascii += char;
+        if (char === ' ') {
+          result.push(ascii);
+          ascii = '';
+        }
+      } else {
+        if (ascii) result.push(ascii);
+        ascii = '';
+        result.push(char);
+      }
+    });
+    if (ascii) result.push(ascii);
+    return result;
+  }
+
+  function measureTextWidth(text, fontSize, letterSpacing = 0) {
+    return Array.from(String(text || '')).reduce((sum, char) => {
+      const base = /[A-Za-z0-9]/.test(char) ? 0.58 : /\s/.test(char) ? 0.35 : /[.,!?;:'"()\-]/.test(char) ? 0.35 : 1;
+      return sum + fontSize * (base + letterSpacing);
+    }, 0);
+  }
+
+  function titleLetterSpacing(area, text) {
+    if (area !== 'title') return 0;
+    const length = normalizedLength(text);
+    if (length > 34) return 0;
+    if (length > 22) return 0.02;
+    return 0.08;
+  }
+
+  function normalizedLength(value) {
+    return String(value || '').replace(/\s+/g, '').length;
+  }
+
+  function areaLabel(area) {
+    return {
+      title: 'タイトル',
+      subtitle: 'サブタイトル',
+      message: '本文',
+      caption: 'キャプション',
+      supplemental: '補足メッセージ',
+      endingCopy: 'エンディングコピー'
+    }[area] || '文字';
+  }
+
+  function recommendedLayoutForArea(area) {
+    if (area === 'title' || area === 'message' || area === 'supplemental') return 'Message Wide Top';
+    if (area === 'caption') return 'Text Focus with Bottom Photo';
+    return 'Legacy Message First';
   }
 
   function percent(value) {
@@ -174,8 +294,12 @@
   window.SlideRenderer = {
     BASE_WIDTH,
     BASE_HEIGHT,
+    TEXT_RULES,
     renderSlide,
     textWarnings,
+    textFit,
+    fitTextToArea,
+    wrapText,
     escapeHtml,
     layoutClass
   };

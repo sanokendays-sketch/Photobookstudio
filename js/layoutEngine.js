@@ -168,6 +168,58 @@
     };
   }
 
+  function adjustDefinitionForText(definition, slide = {}) {
+    const adjusted = cloneDefinition(definition);
+    const layoutId = String(slide.frameLayoutId || slide.layoutType || '').toLowerCase();
+    const textTopLike = /text-top|message-wide|text-focus|golden-legacy|legacy-message/.test(layoutId);
+    if (!textTopLike) return adjusted;
+
+    const messageLines = estimatedLines(slide.message, adjusted.textAreas?.message, 'message');
+    const titleLines = estimatedLines(slide.title, adjusted.textAreas?.title, 'title');
+    const needsMoreTextRoom = messageLines >= 3 || titleLines >= 2;
+    if (!needsMoreTextRoom) return adjusted;
+
+    if (adjusted.textAreas?.message) adjusted.textAreas.message.h = Math.min(0.36, adjusted.textAreas.message.h + (messageLines >= 5 ? 0.10 : 0.06));
+    if (adjusted.textAreas?.title) adjusted.textAreas.title.h = Math.min(0.16, adjusted.textAreas.title.h + (titleLines >= 3 ? 0.04 : 0.025));
+
+    const textBottom = Math.max(
+      ...Object.values(adjusted.textAreas || {}).map((area) => area ? area.y + area.h : 0)
+    );
+    const desiredPhotoTop = Math.min(0.72, Math.max(0.32, textBottom + 0.04));
+    adjusted.photoFrames = (adjusted.photoFrames || []).map((frame) => {
+      if (frame.y < desiredPhotoTop && frame.y > 0.25) {
+        const shift = desiredPhotoTop - frame.y;
+        return {
+          ...frame,
+          y: desiredPhotoTop,
+          h: Math.max(0.14, frame.h - shift)
+        };
+      }
+      return { ...frame };
+    });
+    adjusted.frames = adjusted.photoFrames;
+    adjusted.textAdjustedForOverflow = messageLines >= 5 ? 'prefer-text-layout' : 'photo-shifted';
+    return adjusted;
+  }
+
+  function estimatedLines(value, area, kind) {
+    if (!value || !area) return 0;
+    const normalized = String(value).replace(/\s+/g, '');
+    const manual = String(value).split('\n').length;
+    const perLine = Math.max(6, Math.floor((Number(area.w) || 0.7) * (kind === 'title' ? 28 : 42)));
+    return Math.max(manual, Math.ceil(normalized.length / perLine));
+  }
+
+  function cloneDefinition(definition) {
+    return {
+      ...definition,
+      safeMargins: { ...(definition.safeMargins || {}) },
+      textAreas: Object.fromEntries(Object.entries(definition.textAreas || {}).map(([key, area]) => [key, { ...area }])),
+      photoFrames: (definition.photoFrames || []).map((frame) => ({ ...frame })),
+      frames: (definition.photoFrames || definition.frames || []).map((frame) => ({ ...frame }))
+    };
+  }
+
   function overlaps(a, b) {
     if (!a || !b) return false;
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -277,6 +329,7 @@
     defaultFrameLayoutId,
     photoSelectionGuide,
     isFrameLayoutValid,
-    frameLayoutDefinition
+    frameLayoutDefinition,
+    adjustDefinitionForText
   };
 })();
