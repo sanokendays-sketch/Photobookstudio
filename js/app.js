@@ -29,8 +29,8 @@
   const PDF_MODES = {
     '169': {
       className: 'print-mode-169',
-      label: '16:9スライドPDF',
-      description: '上映・デジタル共有向け。PDFページ自体を16:9にして、下部の白い余白が出にくい設定です。'
+      label: '16:9ブラウザ印刷PDF',
+      description: 'ブラウザ印刷で16:9ページを指定します。余白なしを優先する場合は、左の「16:9画像PDFとして保存」を使ってください。'
     },
     'a4-center': {
       className: 'print-mode-a4-center',
@@ -90,6 +90,7 @@
     slides: [],
     showLayoutGuides: false,
     pdfMode: '169',
+    exportQuality: 'standard',
     playing: null
   };
 
@@ -505,7 +506,9 @@
       state.showLayoutGuides = event.target.checked;
       renderSlideEditPreview();
     });
+    $('#openCurrentSlidePreviewBtn').addEventListener('click', openCurrentSlideInPreview);
     $('#expandEditPreviewBtn').addEventListener('click', toggleEditPreviewSize);
+    window.addEventListener('resize', scaleRenderedSlides);
   }
 
   function renderSlideEdit() {
@@ -808,7 +811,7 @@
     const slide = state.slides.find((item) => item.slideId === state.currentSlideEditId);
     preview.innerHTML = '';
     if (slide) {
-      const rendered = window.SlideRenderer.renderSlide(slide, { showGuides: state.showLayoutGuides });
+      const rendered = renderScaledSlide(slide, { showGuides: state.showLayoutGuides, context: 'edit' });
       preview.appendChild(rendered);
       renderTextFitWarning(slide, rendered);
     }
@@ -821,6 +824,15 @@
     const button = $('#expandEditPreviewBtn');
     const expanded = preview.classList.toggle('is-expanded');
     button.textContent = expanded ? '拡大を閉じる' : 'プレビュー拡大';
+    requestAnimationFrame(scaleRenderedSlides);
+  }
+
+  function openCurrentSlideInPreview() {
+    state.slides = window.SlideBuilder.buildSlides(state);
+    const index = Math.max(0, state.slides.findIndex((item) => item.slideId === state.currentSlideEditId));
+    state.currentSlideIndex = index;
+    showView('preview');
+    setSlide(index);
   }
 
   function manualSlideSettingsMarkup(manualSlide) {
@@ -1399,6 +1411,21 @@
       state.pdfMode = event.target.value;
       renderPdfModeHint();
     });
+    $('#exportQualitySelect').addEventListener('change', (event) => {
+      state.exportQuality = event.target.value;
+      renderPdfModeHint();
+    });
+    $('#imagePdfBtn').addEventListener('click', async () => {
+      try {
+        setExportStatus('info', '16:9画像PDFを作成しています。写真枚数が多い場合は少し時間がかかります。');
+        state.slides = window.SlideBuilder.buildSlides(state);
+        if (!confirmTextWarnings('16:9画像PDF出力')) return;
+        await window.Exporter.exportImagePdf(state.slides, 'gratitude-photo-album.pdf', { quality: state.exportQuality });
+        setExportStatus('success', '16:9画像PDFを保存しました。余白なしの上映・共有向けPDFです。');
+      } catch (error) {
+        setExportStatus('error', exportErrorMessage('画像PDF出力', error));
+      }
+    });
     $('#printBtn').addEventListener('click', () => {
       state.slides = window.SlideBuilder.buildSlides(state);
       renderSlides();
@@ -1407,11 +1434,14 @@
     });
     $('#pptxBtn').addEventListener('click', async () => {
       try {
+        setExportStatus('info', 'PPTXを作成しています。各スライドを画像化してPowerPointへ貼り付けます。');
         state.slides = window.SlideBuilder.buildSlides(state);
         if (!confirmTextWarnings('PPTX出力')) return;
-        await window.Exporter.exportPptx(state.slides, 'gratitude-photo-album.pptx', { skipTextWarningConfirm: true });
+        await window.Exporter.exportPptx(state.slides, 'gratitude-photo-album.pptx', { skipTextWarningConfirm: true, quality: state.exportQuality });
+        setExportStatus('success', 'PPTXを保存しました。PowerPointで開いて上映確認してください。');
       } catch (error) {
-        alert(`PPTX保存に失敗しました。PDF保存をお試しください。\n${error.message}`);
+        setExportStatus('error', exportErrorMessage('PPTX出力', error));
+        alert(exportErrorMessage('PPTX出力', error));
       }
     });
     window.addEventListener('beforeprint', applyPrintModeClass);
@@ -1432,8 +1462,33 @@
     const hint = $('#pdfModeHint');
     if (!select || !hint) return;
     select.value = state.pdfMode || '169';
+    const qualitySelect = $('#exportQualitySelect');
+    if (qualitySelect) qualitySelect.value = state.exportQuality || 'standard';
     const mode = PDF_MODES[state.pdfMode] || PDF_MODES['169'];
-    hint.textContent = `${mode.label}：${mode.description} 上映・デジタル共有には16:9スライドPDFがおすすめです。A4印刷では、用紙比率の違いにより上下に余白が出る場合があります。`;
+    const deps = window.Exporter?.checkExportDependencies?.('all');
+    const libraryNote = deps
+      ? `画像化は${deps.html2canvas ? 'html2canvas' : '内蔵レンダラー'}、PDFは${deps.jspdf ? 'jsPDF' : '内蔵PDF生成'}、PPTXは${deps.pptxgen ? 'PptxGenJS' : '内蔵PPTX生成'}を使います。`
+      : '';
+    hint.textContent = `${mode.label}：${mode.description} 余白を出したくない場合は、16:9画像PDFとして保存を使ってください。紙に印刷する場合は、ブラウザ印刷PDFを使ってください。${libraryNote}`;
+  }
+
+  function setExportStatus(type, message) {
+    const box = $('#exportStatus');
+    if (!box) return;
+    box.hidden = false;
+    box.className = `export-status no-print is-${type}`;
+    box.textContent = message;
+  }
+
+  function exportErrorMessage(label, error) {
+    const detail = error?.message || String(error || '');
+    if (/memory|allocation|canvas|画像化|out of memory/i.test(detail)) {
+      return `${label}に失敗しました。会社PCのブラウザでメモリ不足が発生した可能性があります。出力品質を「軽量」にして再試行してください。\n${detail}`;
+    }
+    if (/library|lib|読み込まれていません|undefined|PptxGen|html2canvas|jsPDF/i.test(detail)) {
+      return `${label}に失敗しました。必要なライブラリが読み込まれていない可能性があります。lib フォルダ、または内蔵出力処理を確認してください。\n${detail}`;
+    }
+    return `${label}に失敗しました。写真の読み込み状態を確認し、必要なら出力品質を「軽量」にして再試行してください。\n${detail}`;
   }
 
   function printPdf() {
@@ -1475,11 +1530,40 @@
     return page;
   }
 
+  function renderScaledSlide(slide, options = {}) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `slide-scale-wrapper slide-scale-${options.context || 'preview'}`;
+    wrapper.dataset.slideId = slide.slideId || '';
+    const inner = document.createElement('div');
+    inner.className = 'slide-scale-inner';
+    const rendered = window.SlideRenderer.renderSlide(slide, {
+      showGuides: Boolean(options.showGuides),
+      showPageNumber: options.showPageNumber,
+      pageNumber: options.pageNumber
+    });
+    rendered.dataset.renderContext = options.context || 'preview';
+    wrapper.dataset.textWarnings = rendered.dataset.textWarnings || '[]';
+    inner.appendChild(rendered);
+    wrapper.appendChild(inner);
+    requestAnimationFrame(() => scaleSlideWrapper(wrapper));
+    return wrapper;
+  }
+
+  function scaleRenderedSlides() {
+    $$('.slide-scale-wrapper').forEach(scaleSlideWrapper);
+  }
+
+  function scaleSlideWrapper(wrapper) {
+    const width = wrapper.clientWidth || 0;
+    const scale = width / window.SlideRenderer.BASE_WIDTH;
+    wrapper.style.setProperty('--slide-scale', String(scale || 1));
+  }
+
   function setSlide(index) {
     if (!state.slides.length) return;
     state.currentSlideIndex = Math.max(0, Math.min(index, state.slides.length - 1));
     $('#slideStage').innerHTML = '';
-    $('#slideStage').appendChild(window.SlideBuilder.renderSlide(state.slides[state.currentSlideIndex]));
+    $('#slideStage').appendChild(renderScaledSlide(state.slides[state.currentSlideIndex], { context: 'stage' }));
     $('#slideCounter').textContent = `${state.currentSlideIndex + 1} / ${state.slides.length}`;
   }
 
@@ -1544,7 +1628,8 @@
       manualSlides: state.manualSlides.map(serializeManualSlide),
       slideEdits: state.slideEdits,
       aiReturnText: state.aiReturnText,
-      pdfMode: state.pdfMode
+      pdfMode: state.pdfMode,
+      exportQuality: state.exportQuality
     };
   }
 
@@ -1606,6 +1691,7 @@
     state.slideEdits = project.slideEdits || {};
     state.aiReturnText = project.aiReturnText || '';
     state.pdfMode = PDF_MODES[project.pdfMode] ? project.pdfMode : '169';
+    state.exportQuality = ['light', 'standard', 'high'].includes(project.exportQuality) ? project.exportQuality : 'standard';
     state.currentThemeId = state.themes[0]?.id || null;
     $('#aiReturnText').value = state.aiReturnText;
     bindBasicForm();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>感謝フォトアルバム Studio</title>
-  <link rel="stylesheet" href="css/style.css?v=layout-areas-1">
+  <link rel="stylesheet" href="css/style.css?v=export-stable-1">
 </head>
 <body>
   <div class="app-shell">
@@ -201,6 +201,7 @@
           <div class="slide-edit-preview-panel">
             <div class="preview-panel-actions no-print">
               <label class="layout-guide-toggle"><input id="layoutGuideToggle" type="checkbox"> レイアウトガイドを表示</label>
+              <button id="openCurrentSlidePreviewBtn" class="secondary" type="button">最終プレビューで確認</button>
               <button id="expandEditPreviewBtn" class="secondary" type="button">プレビュー拡大</button>
             </div>
             <div id="slideEditPreview" class="slide-edit-preview"></div>
@@ -229,19 +230,29 @@
           <button id="fullscreenBtn" class="secondary">フルスクリーン</button>
           <label class="pdf-mode-control">PDF出力モード
             <select id="pdfModeSelect">
-              <option value="169">16:9スライドPDF 推奨</option>
+              <option value="169">16:9ブラウザ印刷PDF</option>
               <option value="a4-center">A4横・中央配置</option>
               <option value="a4-fill">A4横・余白少なめ トリミングあり</option>
             </select>
           </label>
+          <label class="pdf-mode-control">出力品質
+            <select id="exportQualitySelect">
+              <option value="standard">標準</option>
+              <option value="high">高品質</option>
+              <option value="light">軽量</option>
+            </select>
+          </label>
+          <button id="imagePdfBtn" class="primary">16:9画像PDFとして保存</button>
           <button id="printBtn" class="secondary">印刷 / PDF保存</button>
           <button id="pptxBtn" class="secondary">PPTXとして保存</button>
           <span id="slideCounter">0 / 0</span>
         </div>
-        <p id="pdfModeHint" class="pdf-mode-hint no-print">上映・デジタル共有には16:9スライドPDFがおすすめです。A4印刷では、用紙比率の違いにより上下に余白が出る場合があります。</p>
+        <p id="pdfModeHint" class="pdf-mode-hint no-print">余白を出したくない場合は、16:9画像PDFとして保存を使ってください。紙に印刷する場合は、ブラウザ印刷PDFを使ってください。</p>
+        <div id="exportStatus" class="export-status no-print" hidden></div>
         <p class="pptx-note no-print">PPTX出力は、見た目の崩れを防ぐため、各スライドを画像としてPowerPointに貼り付ける方式です。PowerPoint上で文字や写真を個別編集することはできません。</p>
         <div id="slideStage" class="slide-stage"></div>
         <div id="printSlides" class="print-slides"></div>
+        <div id="exportStage" aria-hidden="true"></div>
       </section>
 
       <section id="checklist" class="view">
@@ -255,13 +266,13 @@
     </main>
   </div>
 
-  <script src="js/storage.js?v=starter-package-1"></script>
-  <script src="js/imageProcessor.js?v=starter-package-1"></script>
-  <script src="js/layoutEngine.js?v=layout-areas-1"></script>
-  <script src="js/slideRenderer.js?v=layout-areas-1"></script>
-  <script src="js/slides.js?v=starter-package-1"></script>
-  <script src="js/aiPromptBuilder.js?v=starter-package-1"></script>
-  <script src="js/exporter.js?v=starter-package-1"></script>
-  <script src="js/app.js?v=layout-areas-1"></script>
+  <script src="js/storage.js?v=export-stable-1"></script>
+  <script src="js/imageProcessor.js?v=export-stable-1"></script>
+  <script src="js/layoutEngine.js?v=export-stable-1"></script>
+  <script src="js/slideRenderer.js?v=export-stable-1"></script>
+  <script src="js/slides.js?v=export-stable-1"></script>
+  <script src="js/aiPromptBuilder.js?v=export-stable-1"></script>
+  <script src="js/exporter.js?v=export-stable-1"></script>
+  <script src="js/app.js?v=export-stable-1"></script>
 </body>
 </html>

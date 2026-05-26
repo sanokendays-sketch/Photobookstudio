@@ -1,4 +1,12 @@
 (function () {
+  const EXPORT_WIDTH = 1920;
+  const EXPORT_HEIGHT = 1080;
+  const QUALITY_SCALES = {
+    light: 1,
+    standard: 1.5,
+    high: 2
+  };
+
   function buildRows(state) {
     const slides = window.SlideBuilder.buildSlides(state);
     return slides.map((slide, index) => {
@@ -46,13 +54,64 @@
   async function exportPptx(slides, fileName = 'gratitude-photo-album.pptx', options = {}) {
     if (!slides?.length) throw new Error('出力するスライドがありません。');
     if (!options.skipTextWarningConfirm && !confirmTextWarnings(slides, 'PPTX出力')) return;
+    const dependency = checkExportDependencies('pptx');
+    if (!dependency.ok) throw new Error(dependency.message);
     const images = [];
     for (const slide of slides) {
-      images.push(await slideToPng(slide));
+      const imageDataUrl = await renderSlideToImage(slide, options);
+      images.push(dataUrlToUint8(imageDataUrl));
     }
     const entries = buildPptxEntries(images);
     const blob = createZip(entries, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     saveBlob(fileName, blob);
+  }
+
+  async function exportImagePdf(slides, fileName = 'gratitude-photo-album.pdf', options = {}) {
+    if (!slides?.length) throw new Error('出力するスライドがありません。');
+    const dependency = checkExportDependencies('pdf');
+    if (!dependency.ok) throw new Error(dependency.message);
+    const images = [];
+    for (const slide of slides) {
+      images.push(await renderSlideToImage(slide, options));
+    }
+    if (window.jspdf?.jsPDF || window.jsPDF) {
+      const JsPdf = window.jspdf?.jsPDF || window.jsPDF;
+      const pdf = new JsPdf({ orientation: 'landscape', unit: 'px', format: [EXPORT_WIDTH, EXPORT_HEIGHT] });
+      images.forEach((image, index) => {
+        if (index > 0) pdf.addPage([EXPORT_WIDTH, EXPORT_HEIGHT], 'landscape');
+        pdf.addImage(image, 'PNG', 0, 0, EXPORT_WIDTH, EXPORT_HEIGHT);
+      });
+      pdf.save(fileName);
+      return;
+    }
+    const jpegImages = await Promise.all(images.map((image) => pngDataUrlToJpegBytes(image)));
+    saveBlob(fileName, buildImagePdf(jpegImages), 'application/pdf');
+  }
+
+  function checkExportDependencies(type = 'all') {
+    const deps = {
+      pptxgen: typeof window.pptxgen !== 'undefined' || typeof window.PptxGenJS !== 'undefined',
+      html2canvas: typeof window.html2canvas !== 'undefined',
+      jspdf: typeof window.jspdf !== 'undefined' || typeof window.jsPDF !== 'undefined',
+      builtInPptx: true,
+      builtInImageRenderer: true,
+      builtInPdf: true
+    };
+    if (type === 'pptx') {
+      return {
+        ...deps,
+        ok: deps.pptxgen || deps.builtInPptx,
+        message: deps.pptxgen || deps.builtInPptx ? '' : 'PPTX出力に必要なライブラリが読み込まれていません。lib フォルダ内の pptxgen.bundle.js を確認してください。'
+      };
+    }
+    if (type === 'pdf') {
+      return {
+        ...deps,
+        ok: (deps.html2canvas || deps.builtInImageRenderer) && (deps.jspdf || deps.builtInPdf),
+        message: (deps.html2canvas || deps.builtInImageRenderer) && (deps.jspdf || deps.builtInPdf) ? '' : '画像PDF出力に必要なライブラリが読み込まれていません。lib フォルダ内の html2canvas.min.js / jspdf.umd.min.js を確認してください。'
+      };
+    }
+    return { ...deps, ok: true, message: '' };
   }
 
   function collectTextWarnings(slides) {
@@ -77,17 +136,37 @@
     return confirm(`文字が収まっていない可能性のあるスライドがあります。\nスライド${slideNos}を確認してください。\n\n${details}\n\nこのまま${actionLabel}しますか？`);
   }
 
-  async function slideToPng(slide) {
-    const width = window.SlideRenderer.BASE_WIDTH;
-    const height = window.SlideRenderer.BASE_HEIGHT;
+  async function renderSlideToImage(slide, options = {}) {
+    const scale = QUALITY_SCALES[options.quality || 'standard'] || QUALITY_SCALES.standard;
+    const stage = getOrCreateExportStage();
+    stage.innerHTML = '';
+    stage.style.width = `${EXPORT_WIDTH}px`;
+    stage.style.height = `${EXPORT_HEIGHT}px`;
     const node = window.SlideRenderer.renderSlide(slide, { exporting: true });
-    node.style.width = `${width}px`;
-    node.style.height = `${height}px`;
-    node.style.position = 'fixed';
-    node.style.left = '-10000px';
-    node.style.top = '0';
-    document.body.appendChild(node);
+    node.style.width = `${EXPORT_WIDTH}px`;
+    node.style.height = `${EXPORT_HEIGHT}px`;
+    node.style.maxWidth = 'none';
+    node.style.border = '0';
+    stage.appendChild(node);
     await waitForImages(node);
+    await document.fonts?.ready;
+    if (window.html2canvas) {
+      const canvas = await window.html2canvas(node, {
+        backgroundColor: '#000000',
+        scale,
+        useCORS: false,
+        logging: false,
+        width: EXPORT_WIDTH,
+        height: EXPORT_HEIGHT
+      });
+      return canvas.toDataURL('image/png');
+    }
+    return domToPngDataUrl(node, scale);
+  }
+
+  async function domToPngDataUrl(node, scale = 1) {
+    const width = EXPORT_WIDTH;
+    const height = EXPORT_HEIGHT;
     const css = Array.from(document.styleSheets).map((sheet) => {
       try {
         return Array.from(sheet.cssRules).map((rule) => rule.cssText).join('\n');
@@ -97,9 +176,9 @@
     }).join('\n');
     const html = new XMLSerializer().serializeToString(node);
     const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width * scale}" height="${height * scale}" viewBox="0 0 ${width} ${height}">
         <foreignObject width="100%" height="100%">
-          <div xmlns="http://www.w3.org/1999/xhtml">
+          <div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;background:#000;">
             <style>${css}</style>
             ${html}
           </div>
@@ -116,13 +195,22 @@
     image.src = url;
     await loaded;
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(url);
-    node.remove();
-    const dataUrl = canvas.toDataURL('image/png');
-    return base64ToUint8(dataUrl.split(',')[1]);
+    return canvas.toDataURL('image/png');
+  }
+
+  function getOrCreateExportStage() {
+    let stage = document.getElementById('exportStage');
+    if (!stage) {
+      stage = document.createElement('div');
+      stage.id = 'exportStage';
+      stage.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(stage);
+    }
+    return stage;
   }
 
   function waitForImages(node) {
@@ -237,11 +325,92 @@
     URL.revokeObjectURL(url);
   }
 
+  function dataUrlToUint8(dataUrl) {
+    return base64ToUint8(String(dataUrl || '').split(',')[1] || '');
+  }
+
   function base64ToUint8(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
     return bytes;
+  }
+
+  async function pngDataUrlToJpegBytes(dataUrl) {
+    const image = new Image();
+    image.decoding = 'async';
+    const loaded = new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('PDF用画像への変換に失敗しました。'));
+    });
+    image.src = dataUrl;
+    await loaded;
+    const canvas = document.createElement('canvas');
+    canvas.width = EXPORT_WIDTH;
+    canvas.height = EXPORT_HEIGHT;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#000';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return dataUrlToUint8(canvas.toDataURL('image/jpeg', 0.92));
+  }
+
+  function buildImagePdf(images) {
+    const encoder = new TextEncoder();
+    const objects = [];
+    const pages = [];
+    const addObject = (content) => {
+      objects.push(content);
+      return objects.length;
+    };
+    const catalogId = addObject('');
+    const pagesId = addObject('');
+    images.forEach((image, index) => {
+      const imageId = addObject({
+        binary: image,
+        prefix: `<< /Type /XObject /Subtype /Image /Width ${EXPORT_WIDTH} /Height ${EXPORT_HEIGHT} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.length} >>\nstream\n`,
+        suffix: '\nendstream'
+      });
+      const content = encoder.encode(`q\n${EXPORT_WIDTH} 0 0 ${EXPORT_HEIGHT} 0 0 cm\n/Im${index + 1} Do\nQ`);
+      const contentId = addObject({
+        binary: content,
+        prefix: `<< /Length ${content.length} >>\nstream\n`,
+        suffix: '\nendstream'
+      });
+      const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${EXPORT_WIDTH} ${EXPORT_HEIGHT}] /Resources << /XObject << /Im${index + 1} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+      pages.push(pageId);
+    });
+    objects[catalogId - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
+    objects[pagesId - 1] = `<< /Type /Pages /Kids [${pages.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+
+    const parts = [encoder.encode('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n')];
+    const offsets = [0];
+    let offset = parts[0].length;
+    objects.forEach((object, index) => {
+      offsets.push(offset);
+      const header = encoder.encode(`${index + 1} 0 obj\n`);
+      parts.push(header);
+      offset += header.length;
+      if (typeof object === 'string') {
+        const body = encoder.encode(`${object}\nendobj\n`);
+        parts.push(body);
+        offset += body.length;
+      } else {
+        const prefix = encoder.encode(object.prefix);
+        const suffix = encoder.encode(`${object.suffix}\nendobj\n`);
+        parts.push(prefix, object.binary, suffix);
+        offset += prefix.length + object.binary.length + suffix.length;
+      }
+    });
+    const xrefOffset = offset;
+    const xref = [
+      `xref\n0 ${objects.length + 1}\n`,
+      '0000000000 65535 f \n',
+      ...offsets.slice(1).map((item) => `${String(item).padStart(10, '0')} 00000 n \n`),
+      `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+    ].join('');
+    parts.push(encoder.encode(xref));
+    return new Blob(parts, { type: 'application/pdf' });
   }
 
   function createZip(entries, type) {
@@ -321,6 +490,9 @@
     exportCsv,
     exportMarkdown,
     exportPptx,
+    exportImagePdf,
+    renderSlideToImage,
+    checkExportDependencies,
     collectTextWarnings
   };
 })();

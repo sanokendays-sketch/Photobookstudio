@@ -559,11 +559,6 @@ progress {
   background: #030303;
 }
 
-.slide-edit-preview .slide {
-  width: 100%;
-  max-width: min(1180px, calc(100vw - 720px));
-}
-
 .frame-suggestion {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -835,12 +830,79 @@ progress {
   line-height: 1.6;
 }
 
+.export-status {
+  margin: 10px 14px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(216, 183, 102, 0.36);
+  border-radius: 8px;
+  background: rgba(216, 183, 102, 0.08);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.export-status.is-error {
+  border-color: rgba(255, 176, 166, 0.75);
+  background: rgba(255, 176, 166, 0.10);
+  color: #ffe0dc;
+}
+
+.export-status.is-success {
+  border-color: rgba(148, 210, 160, 0.65);
+  background: rgba(148, 210, 160, 0.08);
+  color: #dff4e3;
+}
+
+#exportStage {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: #000;
+  pointer-events: none;
+  z-index: -1;
+}
+
 .slide-stage {
   min-height: calc(100vh - 75px);
   display: grid;
   place-items: center;
   padding: 24px;
   background: #030303;
+}
+
+.slide-scale-wrapper {
+  --slide-scale: 1;
+  position: relative;
+  width: 100%;
+  max-width: min(1280px, calc(100vw - 48px));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #000;
+}
+
+.slide-edit-preview .slide-scale-wrapper {
+  max-width: min(1180px, calc(100vw - 720px));
+}
+
+.slide-scale-inner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform: scale(var(--slide-scale));
+  transform-origin: top left;
+}
+
+.slide-scale-inner > .slide-renderer {
+  width: 1920px !important;
+  height: 1080px !important;
+  max-width: none !important;
+  aspect-ratio: auto !important;
 }
 
 .slide {
@@ -1384,7 +1446,7 @@ progress {
   background: #030303;
 }
 
-.slide-edit-preview.is-expanded .slide {
+.slide-edit-preview.is-expanded .slide-scale-wrapper {
   max-width: min(1500px, calc(100vw - 80px));
 }
 
@@ -1459,7 +1521,7 @@ progress {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .slide-edit-preview .slide {
+  .slide-edit-preview .slide-scale-wrapper {
     max-width: 100%;
   }
 
@@ -1494,6 +1556,7 @@ progress {
   }
 
   .no-print,
+  #exportStage,
   .sidebar,
   .workspace > .view:not(.preview-view),
   .slide-stage {
